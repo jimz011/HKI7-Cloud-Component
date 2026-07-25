@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HKI 7 Cloud",
+        "description": "Enable the HKI 7 companion API on this Home Assistant instance. This lets the HKI 7 app store backups here and (in later versions) share dashboards and manage parental controls. There is nothing to configure — setup happens in the app."
+      }
+    },
+    "abort": {
+      "already_configured": "HKI 7 Cloud is already set up."
+    }
+  }
+}

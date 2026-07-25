@@ -1,0 +1,13 @@
+{
+  "domain": "hki7",
+  "name": "HKI 7 Cloud",
+  "codeowners": ["@jimz011"],
+  "config_flow": true,
+  "dependencies": ["http", "websocket_api"],
+  "documentation": "https://github.com/jimz011/HKI7-Cloud-Component",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/jimz011/HKI7-Cloud-Component/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
