@@ -5,7 +5,7 @@ single JSON document under `.storage/hki7_cloud`, namespaced by section so later
 phases (shared dashboards, parental-control policies, family config) can slot in
 without a schema migration.
 
-Phase 1 uses only the ``backups`` section:
+Sections:
 
     {
       "backups": {
@@ -13,6 +13,13 @@ Phase 1 uses only the ``backups`` section:
           {"id": str, "created": iso8601, "label": str, "size": int, "payload": <json>},
           ...  # newest first, capped at MAX_BACKUPS
         ]
+      },
+      "dashboards": {
+        "<dashboard_id>": {
+          "id": str, "owner_id": str, "name": str, "updated": iso8601,
+          "shared_with": [ "<ha_user_id>", ... ],  # "*" means everyone
+          "payload": <json>  # one serialised HKIDashboard
+        }
       }
     }
 """
@@ -44,6 +51,7 @@ class Hki7Store:
         if self._data is None:
             self._data = await self._store.async_load() or {}
             self._data.setdefault("backups", {})
+            self._data.setdefault("dashboards", {})
         return self._data
 
     async def _save(self) -> None:
@@ -84,6 +92,83 @@ class Hki7Store:
         return None
 
 
+    # ── Shared dashboards (Phase 2) ──────────────────────────────────────
+
+    async def publish_dashboard(
+        self,
+        owner_id: str,
+        name: str,
+        payload: Any,
+        shared_with: list[str],
+        dashboard_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create or update a shared dashboard. Returns its metadata (no payload)."""
+        data = await self._load()
+        dashboards: dict[str, Any] = data["dashboards"]
+        did = dashboard_id or uuid.uuid4().hex
+        entry = {
+            "id": did,
+            "owner_id": owner_id,
+            "name": name,
+            "updated": _now_iso(),
+            "shared_with": list(dict.fromkeys(shared_with)),  # dedupe, keep order
+            "payload": payload,
+        }
+        dashboards[did] = entry
+        await self._save()
+        return _dash_meta(entry)
+
+    async def unpublish_dashboard(self, dashboard_id: str) -> bool:
+        """Remove a shared dashboard. Returns True if it existed."""
+        data = await self._load()
+        removed = data["dashboards"].pop(dashboard_id, None) is not None
+        if removed:
+            await self._save()
+        return removed
+
+    async def list_dashboards_for(self, user_id: str, is_admin: bool) -> list[dict[str, Any]]:
+        """Metadata (no payloads) of dashboards visible to ``user_id``.
+
+        A user sees dashboards they own, dashboards shared explicitly with them,
+        and dashboards shared with everyone. Admins additionally see everything so
+        they can manage what has been published.
+        """
+        data = await self._load()
+        out: list[dict[str, Any]] = []
+        for entry in data["dashboards"].values():
+            if (
+                is_admin
+                or entry["owner_id"] == user_id
+                or user_id in entry["shared_with"]
+                or "*" in entry["shared_with"]
+            ):
+                out.append(_dash_meta(entry))
+        out.sort(key=lambda e: e.get("updated", ""), reverse=True)
+        return out
+
+    async def get_dashboard_for(
+        self, user_id: str, is_admin: bool, dashboard_id: str
+    ) -> Any | None:
+        """Return the payload of a dashboard if ``user_id`` may see it, else None."""
+        data = await self._load()
+        entry = data["dashboards"].get(dashboard_id)
+        if entry is None:
+            return None
+        if (
+            is_admin
+            or entry["owner_id"] == user_id
+            or user_id in entry["shared_with"]
+            or "*" in entry["shared_with"]
+        ):
+            return entry["payload"]
+        return None
+
+
 def _meta(entry: dict[str, Any]) -> dict[str, Any]:
     """Strip the payload from a backup entry for list/put responses."""
+    return {k: v for k, v in entry.items() if k != "payload"}
+
+
+def _dash_meta(entry: dict[str, Any]) -> dict[str, Any]:
+    """Strip the payload from a dashboard entry for list/publish responses."""
     return {k: v for k, v in entry.items() if k != "payload"}

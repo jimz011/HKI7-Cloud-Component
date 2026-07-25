@@ -10,8 +10,9 @@ possible without the app ever handling passwords or accounts itself:
 
 - **HA-local backups** — back up your dashboard to your own HA instance, as an
   addition to (not a replacement for) the app's Google Drive backups.
-- **Family dashboard sharing** *(planned)* — the admin builds one dashboard and
-  shares it with family members, instead of passing backup files between phones.
+- **Family dashboard sharing** — the admin builds one dashboard and shares it with
+  specific family members (or everyone), instead of passing backup files between
+  phones. Recipients import a copy into their own app.
 - **Parental controls** *(planned)* — hide certain views or rooms from certain
   people. This is UX-level hiding for a friendlier dashboard, **not** a Home
   Assistant security boundary.
@@ -51,8 +52,13 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/backup/put` | any | Store the caller's UI backup blob. |
 | `hki7/backup/list` | any | List the caller's backups (metadata only). |
 | `hki7/backup/get` | any | Fetch one of the caller's backup payloads. |
+| `hki7/users/list` | admin | List HA users for the "share with" picker. |
+| `hki7/dashboard/publish` | admin | Create/update a shared dashboard. |
+| `hki7/dashboard/unpublish` | admin | Remove a shared dashboard. |
+| `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
+| `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
 
-Later phases add `hki7/dashboard/*`, `hki7/policy/*`, and `hki7/config/*`.
+Later phases add `hki7/policy/*` (parental controls) and `hki7/config/*`.
 
 ## Data storage
 
