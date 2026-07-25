@@ -15,6 +15,9 @@ Commands:
     hki7/dashboard/unpublish -> (admin) remove a shared dashboard
     hki7/dashboard/list      -> dashboards visible to the caller (metadata only)
     hki7/dashboard/get       -> the payload of a dashboard the caller may see
+    hki7/policy/set          -> (admin) set a user's hidden views/rooms
+    hki7/policy/get          -> the CALLING user's own policy (never anyone else's)
+    hki7/policy/list         -> (admin) every stored policy, for the editor
 """
 
 from __future__ import annotations
@@ -42,6 +45,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_dashboard_unpublish)
     websocket_api.async_register_command(hass, ws_dashboard_list)
     websocket_api.async_register_command(hass, ws_dashboard_get)
+    websocket_api.async_register_command(hass, ws_policy_set)
+    websocket_api.async_register_command(hass, ws_policy_get)
+    websocket_api.async_register_command(hass, ws_policy_list)
 
 
 def _store(hass: HomeAssistant) -> Hki7Store:
@@ -181,3 +187,42 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "not_found", "Dashboard not found or not shared with you")
         return
     connection.send_result(msg["id"], {"payload": payload})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/policy/set",
+        vol.Required("user_id"): str,
+        vol.Required("hidden_views"): [str],
+        vol.Required("hidden_rooms"): [str],
+    }
+)
+@websocket_api.async_response
+async def ws_policy_set(hass, connection, msg) -> None:
+    """Set a user's hidden views/rooms (admin only)."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    policy = await _store(hass).set_policy(
+        msg["user_id"], msg["hidden_views"], msg["hidden_rooms"]
+    )
+    connection.send_result(msg["id"], policy)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/policy/get"})
+@websocket_api.async_response
+async def ws_policy_get(hass, connection, msg) -> None:
+    """Return the CALLING user's own policy — never anyone else's."""
+    policy = await _store(hass).get_policy(connection.user.id)
+    connection.send_result(msg["id"], policy)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/policy/list"})
+@websocket_api.async_response
+async def ws_policy_list(hass, connection, msg) -> None:
+    """Return every stored policy for the admin editor (admin only)."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    policies = await _store(hass).list_policies()
+    connection.send_result(msg["id"], {"policies": policies})

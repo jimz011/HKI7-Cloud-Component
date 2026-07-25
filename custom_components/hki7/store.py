@@ -20,6 +20,9 @@ Sections:
           "shared_with": [ "<ha_user_id>", ... ],  # "*" means everyone
           "payload": <json>  # one serialised HKIDashboard
         }
+      },
+      "policies": {
+        "<ha_user_id>": {"hidden_views": [str], "hidden_rooms": [str]}
       }
     }
 """
@@ -52,6 +55,7 @@ class Hki7Store:
             self._data = await self._store.async_load() or {}
             self._data.setdefault("backups", {})
             self._data.setdefault("dashboards", {})
+            self._data.setdefault("policies", {})
         return self._data
 
     async def _save(self) -> None:
@@ -162,6 +166,37 @@ class Hki7Store:
         ):
             return entry["payload"]
         return None
+
+
+    # ── Parental-control policies (Phase 3) ──────────────────────────────
+
+    async def set_policy(
+        self, user_id: str, hidden_views: list[str], hidden_rooms: list[str]
+    ) -> dict[str, Any]:
+        """Set (or clear) the hidden views/rooms for one user. Returns the stored policy."""
+        data = await self._load()
+        policies: dict[str, Any] = data["policies"]
+        if not hidden_views and not hidden_rooms:
+            policies.pop(user_id, None)
+            policy = {"hidden_views": [], "hidden_rooms": []}
+        else:
+            policy = {
+                "hidden_views": list(dict.fromkeys(hidden_views)),
+                "hidden_rooms": list(dict.fromkeys(hidden_rooms)),
+            }
+            policies[user_id] = policy
+        await self._save()
+        return policy
+
+    async def get_policy(self, user_id: str) -> dict[str, Any]:
+        """Return one user's policy (empty lists if none set)."""
+        data = await self._load()
+        return data["policies"].get(user_id, {"hidden_views": [], "hidden_rooms": []})
+
+    async def list_policies(self) -> dict[str, Any]:
+        """Return every stored policy, keyed by user id (admin view)."""
+        data = await self._load()
+        return dict(data["policies"])
 
 
 def _meta(entry: dict[str, Any]) -> dict[str, Any]:
