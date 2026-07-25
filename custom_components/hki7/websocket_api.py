@@ -28,6 +28,7 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, MAX_PAYLOAD_BYTES
 from .store import Hki7Store
@@ -50,7 +51,16 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_policy_list)
 
 
+def _is_active(hass: HomeAssistant) -> bool:
+    """True only while the integration's config entry is loaded (see __init__)."""
+    return bool(hass.data.get(DOMAIN, {}).get("active"))
+
+
 def _store(hass: HomeAssistant) -> Hki7Store:
+    # Raises when the integration has been removed, so every data command fails and the app treats
+    # the component as unavailable rather than silently succeeding against orphaned storage.
+    if not _is_active(hass):
+        raise HomeAssistantError("HKI 7 Cloud is not set up")
     return hass.data[DOMAIN]["store"]
 
 
@@ -58,6 +68,9 @@ def _store(hass: HomeAssistant) -> Hki7Store:
 @websocket_api.websocket_command({vol.Required("type"): "hki7/whoami"})
 def ws_whoami(hass, connection, msg) -> None:
     """Return the calling user's identity so the app can key its features on it."""
+    if not _is_active(hass):
+        connection.send_error(msg["id"], "unavailable", "HKI 7 Cloud is not set up")
+        return
     user = connection.user
     connection.send_result(
         msg["id"],
@@ -113,6 +126,9 @@ async def ws_backup_get(hass, connection, msg) -> None:
 @websocket_api.async_response
 async def ws_users_list(hass, connection, msg) -> None:
     """List Home Assistant users so the admin can choose who to share with."""
+    if not _is_active(hass):
+        connection.send_error(msg["id"], "unavailable", "HKI 7 Cloud is not set up")
+        return
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Admin only")
         return

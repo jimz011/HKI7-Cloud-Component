@@ -24,13 +24,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if "store" not in domain_data:
         domain_data["store"] = Hki7Store(hass)
         websocket_api.async_register(hass)
+    # WebSocket commands are registered process-wide and cannot be unregistered, so they keep
+    # answering even after the integration is removed. Gate them on this flag instead, so the app
+    # correctly sees the component as unavailable once the integration is deleted.
+    domain_data["active"] = True
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry.
 
-    The WebSocket commands are registered process-wide and cannot be
-    unregistered, so we leave them in place; a reload simply reuses them.
+    The WebSocket commands stay registered (HA has no way to remove them), but we mark the
+    integration inactive so every hki7/* command reports it as unavailable until it's set up again.
     """
+    hass.data.setdefault(DOMAIN, {})["active"] = False
     return True
