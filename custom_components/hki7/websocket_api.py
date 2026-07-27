@@ -15,7 +15,7 @@ Commands:
     hki7/dashboard/unpublish -> (admin) remove a shared dashboard
     hki7/dashboard/list      -> dashboards visible to the caller (metadata only)
     hki7/dashboard/get       -> the payload of a dashboard the caller may see
-    hki7/policy/set          -> (admin) set a user's hidden views/rooms
+    hki7/policy/set          -> (admin) set a user's hidden views/rooms + edit/visibility permissions
     hki7/policy/get          -> the CALLING user's own policy (never anyone else's)
     hki7/policy/list         -> (admin) every stored policy, for the editor
 """
@@ -211,16 +211,28 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         vol.Required("user_id"): str,
         vol.Required("hidden_views"): [str],
         vol.Required("hidden_rooms"): [str],
+        # Per-user permissions. Optional so an older app that sends only the hidden lists keeps
+        # working; each falls back to its unrestricted default.
+        vol.Optional("allow_edit", default=True): bool,
+        vol.Optional("aesthetics_only", default=False): bool,
+        vol.Optional("show_global_search", default=True): bool,
+        vol.Optional("show_flows", default=True): bool,
     }
 )
 @websocket_api.async_response
 async def ws_policy_set(hass, connection, msg) -> None:
-    """Set a user's hidden views/rooms (admin only)."""
+    """Set a user's hidden views/rooms and edit/visibility permissions (admin only)."""
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Admin only")
         return
     policy = await _store(hass).set_policy(
-        msg["user_id"], msg["hidden_views"], msg["hidden_rooms"]
+        msg["user_id"],
+        msg["hidden_views"],
+        msg["hidden_rooms"],
+        allow_edit=msg["allow_edit"],
+        aesthetics_only=msg["aesthetics_only"],
+        show_global_search=msg["show_global_search"],
+        show_flows=msg["show_flows"],
     )
     connection.send_result(msg["id"], policy)
 

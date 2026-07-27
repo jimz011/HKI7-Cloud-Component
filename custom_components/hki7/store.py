@@ -22,7 +22,11 @@ Sections:
         }
       },
       "policies": {
-        "<ha_user_id>": {"hidden_views": [str], "hidden_rooms": [str]}
+        "<ha_user_id>": {
+          "hidden_views": [str], "hidden_rooms": [str],
+          "allow_edit": bool, "aesthetics_only": bool,
+          "show_global_search": bool, "show_flows": bool
+        }
       }
     }
 """
@@ -168,35 +172,66 @@ class Hki7Store:
         return None
 
 
-    # ── Parental-control policies (Phase 3) ──────────────────────────────
+    # ── Parental-control policies & per-user permissions (Phase 3) ───────
 
     async def set_policy(
-        self, user_id: str, hidden_views: list[str], hidden_rooms: list[str]
+        self,
+        user_id: str,
+        hidden_views: list[str],
+        hidden_rooms: list[str],
+        allow_edit: bool = True,
+        aesthetics_only: bool = False,
+        show_global_search: bool = True,
+        show_flows: bool = True,
     ) -> dict[str, Any]:
-        """Set (or clear) the hidden views/rooms for one user. Returns the stored policy."""
+        """Set (or clear) one user's policy — hidden views/rooms plus edit and visibility
+        permissions. Returns the stored, fully-populated policy."""
         data = await self._load()
         policies: dict[str, Any] = data["policies"]
-        if not hidden_views and not hidden_rooms:
+        policy = {
+            "hidden_views": list(dict.fromkeys(hidden_views)),
+            "hidden_rooms": list(dict.fromkeys(hidden_rooms)),
+            "allow_edit": allow_edit,
+            "aesthetics_only": aesthetics_only,
+            "show_global_search": show_global_search,
+            "show_flows": show_flows,
+        }
+        # Store nothing for an all-default policy so an untouched user leaves no footprint.
+        if policy == _default_policy():
             policies.pop(user_id, None)
-            policy = {"hidden_views": [], "hidden_rooms": []}
         else:
-            policy = {
-                "hidden_views": list(dict.fromkeys(hidden_views)),
-                "hidden_rooms": list(dict.fromkeys(hidden_rooms)),
-            }
             policies[user_id] = policy
         await self._save()
         return policy
 
     async def get_policy(self, user_id: str) -> dict[str, Any]:
-        """Return one user's policy (empty lists if none set)."""
+        """Return one user's policy (defaults if none set), backfilling any missing fields."""
         data = await self._load()
-        return data["policies"].get(user_id, {"hidden_views": [], "hidden_rooms": []})
+        return _full_policy(data["policies"].get(user_id))
 
     async def list_policies(self) -> dict[str, Any]:
-        """Return every stored policy, keyed by user id (admin view)."""
+        """Return every stored policy, keyed by user id (admin view), with defaults backfilled."""
         data = await self._load()
-        return dict(data["policies"])
+        return {uid: _full_policy(p) for uid, p in data["policies"].items()}
+
+
+def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
+    """Return a policy with every field present, filling defaults for older stored records that
+    predate the edit/visibility permissions (or for a user with no policy at all)."""
+    policy = policy or {}
+    return {
+        "hidden_views": policy.get("hidden_views", []),
+        "hidden_rooms": policy.get("hidden_rooms", []),
+        "allow_edit": policy.get("allow_edit", True),
+        "aesthetics_only": policy.get("aesthetics_only", False),
+        "show_global_search": policy.get("show_global_search", True),
+        "show_flows": policy.get("show_flows", True),
+    }
+
+
+def _default_policy() -> dict[str, Any]:
+    """The unrestricted policy: nothing hidden, everything allowed."""
+    return _full_policy(None)
 
 
 def _meta(entry: dict[str, Any]) -> dict[str, Any]:
