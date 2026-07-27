@@ -18,6 +18,7 @@ Commands:
     hki7/policy/set          -> (admin) set a user's hidden views/rooms + edit/visibility permissions
     hki7/policy/get          -> the CALLING user's own policy (never anyone else's)
     hki7/policy/list         -> (admin) every stored policy, for the editor
+    hki7/adaptive_lighting/list -> each Adaptive Lighting profile's light membership (any user)
 """
 
 from __future__ import annotations
@@ -49,6 +50,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_policy_set)
     websocket_api.async_register_command(hass, ws_policy_get)
     websocket_api.async_register_command(hass, ws_policy_list)
+    websocket_api.async_register_command(hass, ws_adaptive_lighting_list)
 
 
 def _is_active(hass: HomeAssistant) -> bool:
@@ -254,3 +256,27 @@ async def ws_policy_list(hass, connection, msg) -> None:
         return
     policies = await _store(hass).list_policies()
     connection.send_result(msg["id"], {"policies": policies})
+
+
+@callback
+@websocket_api.websocket_command({vol.Required("type"): "hki7/adaptive_lighting/list"})
+def ws_adaptive_lighting_list(hass, connection, msg) -> None:
+    """Return each Adaptive Lighting profile's light membership, keyed by config-entry id.
+
+    The app normally reads this from the integration's options flow, which Home Assistant restricts
+    to admins. Serving it here (to any authenticated user) lets non-admin family members get the same
+    per-room Adaptive Lighting controls the admin sees. It only exposes which lights each profile
+    already controls — no configuration is changed.
+    """
+    if not _is_active(hass):
+        connection.send_error(msg["id"], "unavailable", "HKI 7 Cloud is not set up")
+        return
+    profiles: dict[str, list[str]] = {}
+    for entry in hass.config_entries.async_entries("adaptive_lighting"):
+        lights = entry.options.get("lights")
+        if lights is None:
+            lights = entry.data.get("lights", [])
+        if isinstance(lights, str):
+            lights = [lights]
+        profiles[entry.entry_id] = [str(light) for light in (lights or [])]
+    connection.send_result(msg["id"], {"profiles": profiles})
