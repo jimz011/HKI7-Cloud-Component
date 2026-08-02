@@ -238,6 +238,12 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         vol.Optional("show_flows", default=True): bool,
         vol.Optional("allow_dashboard_switch", default=True): bool,
         vol.Optional("allow_dashboard_create", default=True): bool,
+        vol.Optional("allow_reimport", default=True): bool,
+        vol.Optional("hidden_item_ids"): [str],
+        vol.Optional("visible_search_domains"): [str],
+        vol.Optional("visible_search_entity_ids"): [str],
+        vol.Optional("hidden_search_domains"): [str],
+        vol.Optional("hidden_search_entity_ids"): [str],
     }
 )
 @websocket_api.async_response
@@ -256,6 +262,12 @@ async def ws_policy_set(hass, connection, msg) -> None:
         show_flows=msg["show_flows"],
         allow_dashboard_switch=msg["allow_dashboard_switch"],
         allow_dashboard_create=msg["allow_dashboard_create"],
+        allow_reimport=msg["allow_reimport"],
+        hidden_item_ids=msg.get("hidden_item_ids"),
+        visible_search_domains=msg.get("visible_search_domains"),
+        visible_search_entity_ids=msg.get("visible_search_entity_ids"),
+        hidden_search_domains=msg.get("hidden_search_domains"),
+        hidden_search_entity_ids=msg.get("hidden_search_entity_ids"),
     )
     connection.send_result(msg["id"], policy)
 

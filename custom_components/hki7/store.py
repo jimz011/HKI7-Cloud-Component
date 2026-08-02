@@ -26,7 +26,10 @@ Sections:
           "hidden_views": [str], "hidden_rooms": [str],
           "allow_edit": bool, "aesthetics_only": bool,
           "show_global_search": bool, "show_flows": bool,
-          "allow_dashboard_switch": bool, "allow_dashboard_create": bool
+          "allow_dashboard_switch": bool, "allow_dashboard_create": bool,
+          "allow_reimport": bool,
+          "visible_search_domains": [str], "visible_search_entity_ids": [str],
+          "hidden_search_domains": [str], "hidden_search_entity_ids": [str]
         }
       }
     }
@@ -193,11 +196,18 @@ class Hki7Store:
         show_flows: bool = True,
         allow_dashboard_switch: bool = True,
         allow_dashboard_create: bool = True,
+        allow_reimport: bool = True,
+        hidden_item_ids: list[str] | None = None,
+        visible_search_domains: list[str] | None = None,
+        visible_search_entity_ids: list[str] | None = None,
+        hidden_search_domains: list[str] | None = None,
+        hidden_search_entity_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Set (or clear) one user's policy — hidden views/rooms plus edit and visibility
         permissions. Returns the stored, fully-populated policy."""
         data = await self._load()
         policies: dict[str, Any] = data["policies"]
+        previous = _full_policy(policies.get(user_id))
         policy = {
             "hidden_views": list(dict.fromkeys(hidden_views)),
             "hidden_rooms": list(dict.fromkeys(hidden_rooms)),
@@ -207,6 +217,12 @@ class Hki7Store:
             "show_flows": show_flows,
             "allow_dashboard_switch": allow_dashboard_switch,
             "allow_dashboard_create": allow_dashboard_create,
+            "allow_reimport": allow_reimport,
+            "hidden_item_ids": previous["hidden_item_ids"] if hidden_item_ids is None else list(dict.fromkeys(hidden_item_ids)),
+            "visible_search_domains": previous["visible_search_domains"] if visible_search_domains is None else list(dict.fromkeys(visible_search_domains)),
+            "visible_search_entity_ids": previous["visible_search_entity_ids"] if visible_search_entity_ids is None else list(dict.fromkeys(visible_search_entity_ids)),
+            "hidden_search_domains": previous["hidden_search_domains"] if hidden_search_domains is None else list(dict.fromkeys(hidden_search_domains)),
+            "hidden_search_entity_ids": previous["hidden_search_entity_ids"] if hidden_search_entity_ids is None else list(dict.fromkeys(hidden_search_entity_ids)),
         }
         # Store nothing for an all-default policy so an untouched user leaves no footprint.
         if policy == _default_policy():
@@ -240,6 +256,12 @@ def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
         "show_flows": policy.get("show_flows", True),
         "allow_dashboard_switch": policy.get("allow_dashboard_switch", True),
         "allow_dashboard_create": policy.get("allow_dashboard_create", True),
+        "allow_reimport": policy.get("allow_reimport", True),
+        "hidden_item_ids": policy.get("hidden_item_ids", []),
+        "visible_search_domains": policy.get("visible_search_domains", []),
+        "visible_search_entity_ids": policy.get("visible_search_entity_ids", []),
+        "hidden_search_domains": policy.get("hidden_search_domains", []),
+        "hidden_search_entity_ids": policy.get("hidden_search_entity_ids", []),
     }
 
 

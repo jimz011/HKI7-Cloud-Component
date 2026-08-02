@@ -13,7 +13,8 @@ possible without the app ever handling passwords or accounts itself:
 - **Family dashboard sharing** — the admin builds one dashboard and shares it with
   specific family members (or everyone), instead of passing backup files between
   phones. Recipients import a copy into their own app.
-- **Parental controls** — hide certain views or rooms from certain people. This
+- **Parental controls** — hide certain views or rooms from certain people and limit global search
+  to selected Home Assistant domains or individual entities. This
   is UX-level hiding for a friendlier dashboard, **not** a Home Assistant
   security boundary.
 
@@ -57,7 +58,7 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/dashboard/unpublish` | admin | Remove a shared dashboard owned by the caller. |
 | `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
 | `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
-| `hki7/policy/set` | admin | Set a user's hidden views/rooms and app permissions, including dashboard switching/creation. |
+| `hki7/policy/set` | admin | Set a user's hidden views/rooms, app permissions, and visible/invisible global-search domains or entities. |
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
 
