@@ -25,7 +25,8 @@ Sections:
         "<ha_user_id>": {
           "hidden_views": [str], "hidden_rooms": [str],
           "allow_edit": bool, "aesthetics_only": bool,
-          "show_global_search": bool, "show_flows": bool
+          "show_global_search": bool, "show_flows": bool,
+          "allow_dashboard_switch": bool, "allow_dashboard_create": bool
         }
       }
     }
@@ -190,6 +191,8 @@ class Hki7Store:
         aesthetics_only: bool = False,
         show_global_search: bool = True,
         show_flows: bool = True,
+        allow_dashboard_switch: bool = True,
+        allow_dashboard_create: bool = True,
     ) -> dict[str, Any]:
         """Set (or clear) one user's policy — hidden views/rooms plus edit and visibility
         permissions. Returns the stored, fully-populated policy."""
@@ -202,6 +205,8 @@ class Hki7Store:
             "aesthetics_only": aesthetics_only,
             "show_global_search": show_global_search,
             "show_flows": show_flows,
+            "allow_dashboard_switch": allow_dashboard_switch,
+            "allow_dashboard_create": allow_dashboard_create,
         }
         # Store nothing for an all-default policy so an untouched user leaves no footprint.
         if policy == _default_policy():
@@ -233,6 +238,8 @@ def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
         "aesthetics_only": policy.get("aesthetics_only", False),
         "show_global_search": policy.get("show_global_search", True),
         "show_flows": policy.get("show_flows", True),
+        "allow_dashboard_switch": policy.get("allow_dashboard_switch", True),
+        "allow_dashboard_create": policy.get("allow_dashboard_create", True),
     }
 
 

@@ -236,6 +236,8 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         vol.Optional("aesthetics_only", default=False): bool,
         vol.Optional("show_global_search", default=True): bool,
         vol.Optional("show_flows", default=True): bool,
+        vol.Optional("allow_dashboard_switch", default=True): bool,
+        vol.Optional("allow_dashboard_create", default=True): bool,
     }
 )
 @websocket_api.async_response
@@ -252,6 +254,8 @@ async def ws_policy_set(hass, connection, msg) -> None:
         aesthetics_only=msg["aesthetics_only"],
         show_global_search=msg["show_global_search"],
         show_flows=msg["show_flows"],
+        allow_dashboard_switch=msg["allow_dashboard_switch"],
+        allow_dashboard_create=msg["allow_dashboard_create"],
     )
     connection.send_result(msg["id"], policy)
 

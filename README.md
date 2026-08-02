@@ -57,7 +57,7 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/dashboard/unpublish` | admin | Remove a shared dashboard owned by the caller. |
 | `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
 | `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
-| `hki7/policy/set` | admin | Set a user's hidden views/rooms. |
+| `hki7/policy/set` | admin | Set a user's hidden views/rooms and app permissions, including dashboard switching/creation. |
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
 
