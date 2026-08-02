@@ -34,6 +34,8 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import DOMAIN, MAX_PAYLOAD_BYTES
 from .store import Hki7Store
 
+EVENT_DASHBOARD_UPDATED = "hki7_dashboard_updated"
+
 
 @callback
 def async_register(hass: HomeAssistant) -> None:
@@ -168,7 +170,14 @@ async def ws_dashboard_publish(hass, connection, msg) -> None:
         shared_with=msg["shared_with"],
         dashboard_id=msg.get("dashboard_id"),
     )
+    if meta is None:
+        connection.send_error(msg["id"], "unauthorized", "Only the dashboard owner may update it")
+        return
     connection.send_result(msg["id"], meta)
+    hass.bus.async_fire(
+        EVENT_DASHBOARD_UPDATED,
+        {"dashboard_id": meta["id"], "owner_id": connection.user.id, "action": "published"},
+    )
 
 
 @websocket_api.websocket_command(
@@ -180,8 +189,16 @@ async def ws_dashboard_unpublish(hass, connection, msg) -> None:
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Admin only")
         return
-    removed = await _store(hass).unpublish_dashboard(msg["dashboard_id"])
+    removed = await _store(hass).unpublish_dashboard(connection.user.id, msg["dashboard_id"])
+    if removed is None:
+        connection.send_error(msg["id"], "unauthorized", "Only the dashboard owner may unpublish it")
+        return
     connection.send_result(msg["id"], {"removed": removed})
+    if removed:
+        hass.bus.async_fire(
+            EVENT_DASHBOARD_UPDATED,
+            {"dashboard_id": msg["dashboard_id"], "owner_id": connection.user.id, "action": "unpublished"},
+        )
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hki7/dashboard/list"})

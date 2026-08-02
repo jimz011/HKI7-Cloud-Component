@@ -53,15 +53,17 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/backup/list` | any | List the caller's backups (metadata only). |
 | `hki7/backup/get` | any | Fetch one of the caller's backup payloads. |
 | `hki7/users/list` | admin | List HA users for the "share with" picker. |
-| `hki7/dashboard/publish` | admin | Create/update a shared dashboard. |
-| `hki7/dashboard/unpublish` | admin | Remove a shared dashboard. |
+| `hki7/dashboard/publish` | admin | Create a shared dashboard, or update one owned by the caller. |
+| `hki7/dashboard/unpublish` | admin | Remove a shared dashboard owned by the caller. |
 | `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
 | `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
 | `hki7/policy/set` | admin | Set a user's hidden views/rooms. |
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
 
-A later phase adds `hki7/config/*` for in-app family setup.
+Publishing or unpublishing fires the Home Assistant event `hki7_dashboard_updated`.
+Foreground HKI 7 clients use it as an invalidation signal and then fetch only dashboards their
+authenticated Home Assistant user may access; clients that were offline reconcile on app startup.
 
 ## Data storage
 

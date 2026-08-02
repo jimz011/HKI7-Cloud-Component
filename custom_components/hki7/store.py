@@ -109,11 +109,14 @@ class Hki7Store:
         payload: Any,
         shared_with: list[str],
         dashboard_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Create or update a shared dashboard. Returns its metadata (no payload)."""
+    ) -> dict[str, Any] | None:
+        """Create/update an owned dashboard, rejecting another owner's id."""
         data = await self._load()
         dashboards: dict[str, Any] = data["dashboards"]
         did = dashboard_id or uuid.uuid4().hex
+        existing = dashboards.get(did)
+        if existing is not None and existing.get("owner_id") != owner_id:
+            return None
         entry = {
             "id": did,
             "owner_id": owner_id,
@@ -126,10 +129,14 @@ class Hki7Store:
         await self._save()
         return _dash_meta(entry)
 
-    async def unpublish_dashboard(self, dashboard_id: str) -> bool:
-        """Remove a shared dashboard. Returns True if it existed."""
+    async def unpublish_dashboard(self, owner_id: str, dashboard_id: str) -> bool | None:
+        """Remove an owned dashboard; return None for an ownership violation."""
         data = await self._load()
-        removed = data["dashboards"].pop(dashboard_id, None) is not None
+        dashboards: dict[str, Any] = data["dashboards"]
+        existing = dashboards.get(dashboard_id)
+        if existing is not None and existing.get("owner_id") != owner_id:
+            return None
+        removed = dashboards.pop(dashboard_id, None) is not None
         if removed:
             await self._save()
         return removed
