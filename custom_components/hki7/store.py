@@ -202,6 +202,7 @@ class Hki7Store:
         visible_search_entity_ids: list[str] | None = None,
         hidden_search_domains: list[str] | None = None,
         hidden_search_entity_ids: list[str] | None = None,
+        room_follow: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Set (or clear) one user's policy — hidden views/rooms plus edit and visibility
         permissions. Returns the stored, fully-populated policy."""
@@ -223,6 +224,7 @@ class Hki7Store:
             "visible_search_entity_ids": previous["visible_search_entity_ids"] if visible_search_entity_ids is None else list(dict.fromkeys(visible_search_entity_ids)),
             "hidden_search_domains": previous["hidden_search_domains"] if hidden_search_domains is None else list(dict.fromkeys(hidden_search_domains)),
             "hidden_search_entity_ids": previous["hidden_search_entity_ids"] if hidden_search_entity_ids is None else list(dict.fromkeys(hidden_search_entity_ids)),
+            "room_follow": previous["room_follow"] if room_follow is None else _full_room_follow(room_follow),
         }
         # Store nothing for an all-default policy so an untouched user leaves no footprint.
         if policy == _default_policy():
@@ -241,6 +243,20 @@ class Hki7Store:
         """Return every stored policy, keyed by user id (admin view), with defaults backfilled."""
         data = await self._load()
         return {uid: _full_policy(p) for uid, p in data["policies"].items()}
+
+    async def room_follow_roster(self) -> list[str]:
+        """The room-presence sensors tracked across the household, for the people-per-room
+        counter. Readable by any user because counting needs the sensor ids and nothing else —
+        no user ids, no other policy field, and every id is an entity the caller can already
+        read straight from Home Assistant."""
+        data = await self._load()
+        sensors: list[str] = []
+        for stored in data["policies"].values():
+            follow = _full_room_follow(stored.get("room_follow"))
+            sensor = follow["sensor_entity_id"]
+            if follow["enabled"] and sensor and sensor not in sensors:
+                sensors.append(sensor)
+        return sensors
 
 
 def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
@@ -262,6 +278,31 @@ def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
         "visible_search_entity_ids": policy.get("visible_search_entity_ids", []),
         "hidden_search_domains": policy.get("hidden_search_domains", []),
         "hidden_search_entity_ids": policy.get("hidden_search_entity_ids", []),
+        "room_follow": _full_room_follow(policy.get("room_follow")),
+    }
+
+
+def _full_room_follow(follow: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalise one user's room-following settings.
+
+    ``sensor_entity_id`` is that person's room-presence sensor (ESPresense and mqtt_room both
+    publish the room name as the state). ``state_rooms`` only holds overrides — the app matches
+    a state against the area names itself, so a household whose rooms are named after its areas
+    needs no mapping at all.
+    """
+    follow = follow or {}
+    sensor = follow.get("sensor_entity_id") or None
+    state_rooms = follow.get("state_rooms") or {}
+    return {
+        "sensor_entity_id": sensor,
+        # Following is meaningless without a sensor, so it can never be on without one.
+        "enabled": bool(follow.get("enabled", False)) and sensor is not None,
+        "open_on_launch": bool(follow.get("open_on_launch", True)),
+        "prompt_on_move": bool(follow.get("prompt_on_move", True)),
+        # Seconds the new room must hold before it counts as a real move. Room-presence sensors
+        # flap between adjacent rooms, so 0 would mean a prompt every few seconds.
+        "dwell_seconds": max(0, min(600, int(follow.get("dwell_seconds", 20)))),
+        "state_rooms": {str(k): str(v) for k, v in state_rooms.items()},
     }
 
 

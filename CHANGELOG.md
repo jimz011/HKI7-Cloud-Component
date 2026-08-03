@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- Added per-user room following to `hki7/policy/set`, so an admin can configure the whole family from one place. Each person's policy carries the room-presence sensor tracking their phone (ESPresense and `mqtt_room` both publish the room name as the sensor's state), whether following is on, whether it opens that room when the app launches, whether moving rooms prompts to switch views, and how long a new room must hold before it counts as a move.
+- `state_rooms` stores only overrides: the app matches a sensor state against the Home Assistant area names itself, so a household whose ESPresense rooms are named after its areas needs no mapping at all.
+- Following can never be enabled without a sensor, and the dwell time is clamped to 0–600 seconds regardless of what a client sends.
+- New `hki7/room_follow/roster` returns the household's tracked sensor ids to any authenticated user, which is what the app's people-per-room counter needs. It exposes no user ids and no other policy field, and every id it returns is an entity the caller can already read directly from Home Assistant.
+- Room-following settings are backfilled for older stored records and preserved when an older app client updates some other permission.
+
 ## 0.5.5
 
 - Ships the 0.5.3 and 0.5.4 work, which was committed but never released: HACS installs by release, so 0.5.2 remained the newest version anyone could get.

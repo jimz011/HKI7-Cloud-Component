@@ -58,9 +58,10 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/dashboard/unpublish` | admin | Remove a shared dashboard owned by the caller. |
 | `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
 | `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
-| `hki7/policy/set` | admin | Set a user's hidden views/rooms, app permissions, and visible/invisible global-search domains or entities. |
+| `hki7/policy/set` | admin | Set a user's hidden views/rooms, app permissions, visible/invisible global-search domains or entities, and room-following settings. |
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
+| `hki7/room_follow/roster` | any | The household's room-presence sensor ids, for the people-per-room counter. |
 
 Publishing or unpublishing fires the Home Assistant event `hki7_dashboard_updated`.
 Foreground HKI 7 clients use it as an invalidation signal and then fetch only dashboards their

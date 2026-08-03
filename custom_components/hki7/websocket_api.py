@@ -18,6 +18,7 @@ Commands:
     hki7/policy/set          -> (admin) set a user's hidden views/rooms + edit/visibility permissions
     hki7/policy/get          -> the CALLING user's own policy (never anyone else's)
     hki7/policy/list         -> (admin) every stored policy, for the editor
+    hki7/room_follow/roster  -> the household's room-presence sensor ids (any user)
     hki7/adaptive_lighting/list -> each Adaptive Lighting profile's light membership (any user)
 """
 
@@ -36,6 +37,20 @@ from .store import Hki7Store
 
 EVENT_DASHBOARD_UPDATED = "hki7_dashboard_updated"
 
+# One person's room-following settings. Every field is optional so the app can send a partial
+# update; store._full_room_follow fills the rest and clamps dwell_seconds.
+_ROOM_FOLLOW_SCHEMA = vol.Schema(
+    {
+        vol.Optional("sensor_entity_id"): vol.Any(str, None),
+        vol.Optional("enabled"): bool,
+        vol.Optional("open_on_launch"): bool,
+        vol.Optional("prompt_on_move"): bool,
+        vol.Optional("dwell_seconds"): vol.All(vol.Coerce(int), vol.Range(min=0, max=600)),
+        # Sensor state -> area id, holding only the states the app could not match to an area.
+        vol.Optional("state_rooms"): {str: str},
+    }
+)
+
 
 @callback
 def async_register(hass: HomeAssistant) -> None:
@@ -52,6 +67,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_policy_set)
     websocket_api.async_register_command(hass, ws_policy_get)
     websocket_api.async_register_command(hass, ws_policy_list)
+    websocket_api.async_register_command(hass, ws_room_follow_roster)
     websocket_api.async_register_command(hass, ws_adaptive_lighting_list)
 
 
@@ -244,6 +260,7 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         vol.Optional("visible_search_entity_ids"): [str],
         vol.Optional("hidden_search_domains"): [str],
         vol.Optional("hidden_search_entity_ids"): [str],
+        vol.Optional("room_follow"): _ROOM_FOLLOW_SCHEMA,
     }
 )
 @websocket_api.async_response
@@ -268,8 +285,22 @@ async def ws_policy_set(hass, connection, msg) -> None:
         visible_search_entity_ids=msg.get("visible_search_entity_ids"),
         hidden_search_domains=msg.get("hidden_search_domains"),
         hidden_search_entity_ids=msg.get("hidden_search_entity_ids"),
+        room_follow=msg.get("room_follow"),
     )
     connection.send_result(msg["id"], policy)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/room_follow/roster"})
+@websocket_api.async_response
+async def ws_room_follow_roster(hass, connection, msg) -> None:
+    """Return the household's room-presence sensor ids, for the people-per-room counter.
+
+    Deliberately open to any authenticated user: counting people in a room needs the sensor ids
+    and nothing else, and every id here is an entity the caller can already read directly from
+    Home Assistant. No user ids and no other policy field are exposed.
+    """
+    sensors = await _store(hass).room_follow_roster()
+    connection.send_result(msg["id"], {"sensors": sensors})
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hki7/policy/get"})
