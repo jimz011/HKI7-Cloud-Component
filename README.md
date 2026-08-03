@@ -1,5 +1,7 @@
 # HKI 7 Cloud
 
+<img width="1024" height="500" alt="play_feature_graphic_1024x500" src="https://github.com/user-attachments/assets/ef15a0ed-1b1a-4390-94f0-99c7380d6e67" />
+
 A local companion backend for the [HKI 7](https://github.com/jimz011/android-hki7)
 Home Assistant app. It stores app data **on your own Home Assistant instance**
 and exposes it over Home Assistant's authenticated WebSocket API.
