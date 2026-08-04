@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- `hki7/policy/set` now accepts `continue_after_launch` on a person's room-following settings: when `false`, `open_on_launch` is the only thing that person's following does — no prompts, no silent moves once the app is already open. Older app builds that never send it keep the previous always-on tracking behavior (defaults to `true`).
+
 ## 0.6.0
 
 - Added per-user room following to `hki7/policy/set`, so an admin can configure the whole family from one place. Each person's policy carries the room-presence sensor tracking their phone (ESPresense and `mqtt_room` both publish the room name as the sensor's state), whether following is on, whether it opens that room when the app launches, whether moving rooms prompts to switch views, and how long a new room must hold before it counts as a move.

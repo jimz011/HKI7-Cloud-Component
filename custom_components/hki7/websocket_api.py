@@ -44,6 +44,7 @@ _ROOM_FOLLOW_SCHEMA = vol.Schema(
         vol.Optional("sensor_entity_id"): vol.Any(str, None),
         vol.Optional("enabled"): bool,
         vol.Optional("open_on_launch"): bool,
+        vol.Optional("continue_after_launch"): bool,
         vol.Optional("prompt_on_move"): bool,
         vol.Optional("dwell_seconds"): vol.All(vol.Coerce(int), vol.Range(min=0, max=600)),
         # Sensor state -> area id, holding only the states the app could not match to an area.

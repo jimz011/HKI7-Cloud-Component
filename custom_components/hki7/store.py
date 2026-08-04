@@ -298,6 +298,9 @@ def _full_room_follow(follow: dict[str, Any] | None) -> dict[str, Any]:
         # Following is meaningless without a sensor, so it can never be on without one.
         "enabled": bool(follow.get("enabled", False)) and sensor is not None,
         "open_on_launch": bool(follow.get("open_on_launch", True)),
+        # False stops tracking after that initial placement — no prompts, no silent moves — so
+        # open_on_launch is the only thing this person's following does once the app is open.
+        "continue_after_launch": bool(follow.get("continue_after_launch", True)),
         "prompt_on_move": bool(follow.get("prompt_on_move", True)),
         # Seconds the new room must hold before it counts as a real move. Room-presence sensors
         # flap between adjacent rooms, so 0 would mean a prompt every few seconds.
