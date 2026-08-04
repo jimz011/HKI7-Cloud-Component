@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+
+- `hki7/whoami` now returns `version`, the installed component's own version string (read from `manifest.json`, so it can never drift out of sync with what HACS reports). Lets the app show which HKI 7 Cloud version is installed and warn when a feature needs a newer one, instead of only finding out after a save is silently rejected.
+
 ## 0.6.1
 
 - `hki7/policy/set` now accepts `continue_after_launch` on a person's room-following settings: when `false`, `open_on_launch` is the only thing that person's following does — no prompts, no silent moves once the app is already open. Older app builds that never send it keep the previous always-on tracking behavior (defaults to `true`).

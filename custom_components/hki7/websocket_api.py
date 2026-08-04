@@ -6,7 +6,7 @@ what lets later phases share dashboards and apply per-user parental controls
 without the app ever managing identity.
 
 Commands:
-    hki7/whoami              -> {user_id, name, is_admin, is_owner}
+    hki7/whoami              -> {user_id, name, is_admin, is_owner, version}
     hki7/backup/put          -> stores the caller's UI backup blob, returns metadata
     hki7/backup/list         -> metadata of the caller's backups (newest first)
     hki7/backup/get          -> the payload of one of the caller's backups
@@ -32,7 +32,7 @@ from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN, MAX_PAYLOAD_BYTES
+from .const import DOMAIN, MAX_PAYLOAD_BYTES, VERSION
 from .store import Hki7Store
 
 EVENT_DASHBOARD_UPDATED = "hki7_dashboard_updated"
@@ -100,6 +100,7 @@ def ws_whoami(hass, connection, msg) -> None:
             "name": user.name,
             "is_admin": user.is_admin,
             "is_owner": user.is_owner,
+            "version": VERSION,
         },
     )
 

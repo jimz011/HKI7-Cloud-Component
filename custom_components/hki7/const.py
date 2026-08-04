@@ -1,6 +1,13 @@
 """Constants for the HKI 7 Cloud integration."""
 
+import json
+from pathlib import Path
+
 DOMAIN = "hki7"
+
+# Read straight from manifest.json rather than duplicating the version string here, so a release
+# can never bump one and forget the other — whatever HACS/HA core report is what hki7/whoami reports.
+VERSION: str = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))["version"]
 
 # One HA Store file holds every HKI 7 record (backups, and — in later phases —
 # shared dashboards, parental-control policies, and family config).
