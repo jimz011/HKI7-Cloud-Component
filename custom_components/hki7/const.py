@@ -20,3 +20,12 @@ MAX_BACKUPS = 14
 # Hard ceiling on a single backup payload (2 MB) so a malformed client can't
 # bloat HA's .storage. A real dashboard export is a few tens of KB.
 MAX_PAYLOAD_BYTES = 2 * 1024 * 1024
+
+# Per-user cap on remembered app installs. A reinstall gives the app a new install id, so
+# without a cap this section would grow forever in a household that reinstalls often.
+MAX_DEVICES_PER_USER = 12
+
+# A device re-reports on every app foreground. When nothing about it has changed, rewriting
+# .storage just to move its "last seen" clock is pure disk churn, so an unchanged report is
+# only persisted once this many seconds have passed.
+DEVICE_REPORT_MIN_INTERVAL_SECONDS = 3600

@@ -31,6 +31,15 @@ Sections:
           "visible_search_domains": [str], "visible_search_entity_ids": [str],
           "hidden_search_domains": [str], "hidden_search_entity_ids": [str]
         }
+      },
+      "devices": {
+        "<ha_user_id>": {
+          "<install_id>": {
+            "device_id": str, "device_name": str, "app_version": str,
+            "app_version_code": int, "os_version": str, "model": str,
+            "user_name": str, "reported": iso8601
+          }
+        }
       }
     }
 """
@@ -44,7 +53,13 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .const import MAX_BACKUPS, STORAGE_KEY, STORAGE_VERSION
+from .const import (
+    DEVICE_REPORT_MIN_INTERVAL_SECONDS,
+    MAX_BACKUPS,
+    MAX_DEVICES_PER_USER,
+    STORAGE_KEY,
+    STORAGE_VERSION,
+)
 
 
 def _now_iso() -> str:
@@ -64,6 +79,7 @@ class Hki7Store:
             self._data.setdefault("backups", {})
             self._data.setdefault("dashboards", {})
             self._data.setdefault("policies", {})
+            self._data.setdefault("devices", {})
         return self._data
 
     async def _save(self) -> None:
@@ -257,6 +273,98 @@ class Hki7Store:
             if follow["enabled"] and sensor and sensor not in sensors:
                 sensors.append(sensor)
         return sensors
+
+
+    # ── App installs (Phase 4) ───────────────────────────────────────────
+
+    async def report_device(
+        self,
+        user_id: str,
+        user_name: str,
+        device_id: str,
+        device_name: str,
+        app_version: str,
+        app_version_code: int | None = None,
+        os_version: str | None = None,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """Record one app install for ``user_id`` and return the stored record.
+
+        ``user_id`` comes from the authenticated connection, never from the client, so a device
+        can only ever report itself as the account it is signed in as.
+        """
+        data = await self._load()
+        devices: dict[str, Any] = data["devices"].setdefault(user_id, {})
+        previous = devices.get(device_id)
+        entry = {
+            "device_id": device_id,
+            "device_name": device_name,
+            "app_version": app_version,
+            "app_version_code": app_version_code,
+            "os_version": os_version,
+            "model": model,
+            "user_name": user_name,
+            "reported": _now_iso(),
+        }
+        # The app reports on every foreground. Persist only a real change, or a "last seen" that
+        # has gone stale enough to be worth a disk write.
+        if (
+            previous is not None
+            and _device_facts(previous) == _device_facts(entry)
+            and _seconds_since(previous.get("reported")) < DEVICE_REPORT_MIN_INTERVAL_SECONDS
+        ):
+            return previous
+        devices[device_id] = entry
+        if len(devices) > MAX_DEVICES_PER_USER:
+            newest = sorted(
+                devices.items(), key=lambda kv: kv[1].get("reported") or "", reverse=True
+            )[:MAX_DEVICES_PER_USER]
+            data["devices"][user_id] = dict(newest)
+        await self._save()
+        return entry
+
+    async def list_devices(self) -> list[dict[str, Any]]:
+        """Every reported app install across the household, for the admin's device list."""
+        data = await self._load()
+        out: list[dict[str, Any]] = []
+        for user_id, devices in data["devices"].items():
+            for entry in devices.values():
+                out.append({**entry, "user_id": user_id})
+        out.sort(key=lambda e: ((e.get("user_name") or "").lower(), (e.get("device_name") or "").lower()))
+        return out
+
+    async def forget_device(self, user_id: str, device_id: str) -> bool:
+        """Drop one remembered install (an uninstalled or replaced phone). True if it existed."""
+        data = await self._load()
+        devices: dict[str, Any] = data["devices"].get(user_id, {})
+        if devices.pop(device_id, None) is None:
+            return False
+        if not devices:
+            data["devices"].pop(user_id, None)
+        await self._save()
+        return True
+
+
+def _device_facts(entry: dict[str, Any]) -> tuple[Any, ...]:
+    """Everything about a device except when it was last seen."""
+    return tuple(
+        entry.get(key)
+        for key in ("device_name", "app_version", "app_version_code", "os_version", "model", "user_name")
+    )
+
+
+def _seconds_since(iso: str | None) -> float:
+    """Age of an ISO-8601 timestamp in seconds; treated as ancient when missing or unparsable."""
+    if not iso:
+        return float("inf")
+    try:
+        stored = datetime.fromisoformat(iso)
+    except ValueError:
+        return float("inf")
+    # A record written by some other tool could be naive; treat it as UTC rather than raising.
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - stored).total_seconds()
 
 
 def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:

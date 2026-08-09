@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- New `hki7/device/report`, so each HKI 7 install can record which app version it is running. Any authenticated user may call it, but only for themselves: the account a device is filed under is the authenticated caller, never anything the client sends. The record holds the app's own stable install id, the device name, app version and version code, the Android version and the model.
+- New `hki7/device/list` (admin only) returns every reported install in the household — what the app's Settings › Family Sharing › Devices tab shows: who is running which HKI version, and who is behind.
+- New `hki7/device/forget` (admin only) drops one remembered install, for a phone that has been replaced or had the app uninstalled. A device still in use simply reports itself again the next time its app opens.
+- The app previously reported its version as a `mobile_app` diagnostic sensor, which only covered devices doing `mobile_app` telemetry at all — a phone with both Location and Notifications switched off was invisible. This path uses the WebSocket connection the app already holds, so it reaches every signed-in device and creates no entities in Home Assistant.
+- Remembered installs are capped at 12 per user (a reinstall gets a new install id), every text field is length-capped before it reaches `.storage`, and an unchanged report is only written to disk once an hour, so reporting on every app foreground costs no disk churn.
+
 ## 0.6.2
 
 - `hki7/whoami` now returns `version`, the installed component's own version string (read from `manifest.json`, so it can never drift out of sync with what HACS reports). Lets the app show which HKI 7 Cloud version is installed and warn when a feature needs a newer one, instead of only finding out after a save is silently rejected.

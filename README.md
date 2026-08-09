@@ -19,6 +19,9 @@ possible without the app ever handling passwords or accounts itself:
   to selected Home Assistant domains or individual entities. This
   is UX-level hiding for a friendlier dashboard, **not** a Home Assistant
   security boundary.
+- **Family devices** — each install records which HKI 7 version it runs, so the admin can see at a
+  glance who is behind on updates. Nothing is added to Home Assistant's entity list; a device only
+  ever reports itself, filed under the Home Assistant account it is signed in as.
 
 Everything is set up **from inside the HKI 7 app**. This integration is just the
 wiring Home Assistant needs to store and serve that data.

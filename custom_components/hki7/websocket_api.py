@@ -20,6 +20,9 @@ Commands:
     hki7/policy/list         -> (admin) every stored policy, for the editor
     hki7/room_follow/roster  -> the household's room-presence sensor ids (any user)
     hki7/adaptive_lighting/list -> each Adaptive Lighting profile's light membership (any user)
+    hki7/device/report       -> records the CALLING device's app version (any user)
+    hki7/device/list         -> (admin) every reported app install in the household
+    hki7/device/forget       -> (admin) drop one remembered install
 """
 
 from __future__ import annotations
@@ -70,6 +73,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_policy_list)
     websocket_api.async_register_command(hass, ws_room_follow_roster)
     websocket_api.async_register_command(hass, ws_adaptive_lighting_list)
+    websocket_api.async_register_command(hass, ws_device_report)
+    websocket_api.async_register_command(hass, ws_device_list)
+    websocket_api.async_register_command(hass, ws_device_forget)
 
 
 def _is_active(hass: HomeAssistant) -> bool:
@@ -322,6 +328,76 @@ async def ws_policy_list(hass, connection, msg) -> None:
         return
     policies = await _store(hass).list_policies()
     connection.send_result(msg["id"], {"policies": policies})
+
+
+# Free text straight off a phone, so every field is length-capped before it reaches .storage.
+_TEXT = vol.All(str, vol.Length(max=128))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/device/report",
+        # The app's own stable install id. Not the mobile_app device id: reporting must not depend
+        # on the mobile_app registration existing, since a phone with location and notifications
+        # both switched off never makes one.
+        vol.Required("device_id"): _TEXT,
+        vol.Required("device_name"): _TEXT,
+        vol.Required("app_version"): _TEXT,
+        vol.Optional("app_version_code"): vol.Coerce(int),
+        vol.Optional("os_version"): _TEXT,
+        vol.Optional("model"): _TEXT,
+    }
+)
+@websocket_api.async_response
+async def ws_device_report(hass, connection, msg) -> None:
+    """Record the calling device's HKI version.
+
+    Open to any authenticated user: a device may only ever report itself, and the account it is
+    filed under is the authenticated caller, not anything the client sends.
+    """
+    user = connection.user
+    entry = await _store(hass).report_device(
+        user_id=user.id,
+        user_name=user.name,
+        device_id=msg["device_id"],
+        device_name=msg["device_name"],
+        app_version=msg["app_version"],
+        app_version_code=msg.get("app_version_code"),
+        os_version=msg.get("os_version"),
+        model=msg.get("model"),
+    )
+    connection.send_result(msg["id"], entry)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/device/list"})
+@websocket_api.async_response
+async def ws_device_list(hass, connection, msg) -> None:
+    """Return every reported app install in the household (admin only)."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    devices = await _store(hass).list_devices()
+    connection.send_result(msg["id"], {"devices": devices})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/device/forget",
+        vol.Required("user_id"): str,
+        vol.Required("device_id"): str,
+    }
+)
+@websocket_api.async_response
+async def ws_device_forget(hass, connection, msg) -> None:
+    """Drop one remembered install — an uninstalled or replaced phone (admin only).
+
+    A device that is still in use simply reports itself again the next time its app opens.
+    """
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    removed = await _store(hass).forget_device(msg["user_id"], msg["device_id"])
+    connection.send_result(msg["id"], {"removed": removed})
 
 
 @callback
