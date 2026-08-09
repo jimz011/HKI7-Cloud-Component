@@ -54,7 +54,9 @@ Sections:
         # "what happened" feed for. Set once by an admin rather than per device, so a
         # large family is not configured phone by phone. Who may see which of these is a
         # per-user concern and lives in "policies" (hidden_event_*), not here.
-        "entity_ids": [str],
+        # "domains" are kept unexpanded so they keep meaning "everything of this kind",
+        # including entities added after the admin picked them; the app expands them.
+        "entity_ids": [str], "domains": [str],
         "set_by": "<ha_user_id>", "set_at": iso8601
       }
     }
@@ -73,6 +75,7 @@ from .const import (
     DEVICE_REPORT_MIN_INTERVAL_SECONDS,
     MAX_BACKUPS,
     MAX_DEVICES_PER_USER,
+    MAX_EVENT_DOMAINS,
     MAX_EVENT_ENTITIES,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -297,25 +300,43 @@ class Hki7Store:
                 sensors.append(sensor)
         return sensors
 
-    async def get_events_roster(self) -> list[str]:
-        """The household's full event-timeline roster, exactly as the admin set it."""
+    async def get_events_roster(self) -> dict[str, list[str]]:
+        """The household's full event-timeline roster, exactly as the admin set it.
+
+        Named entities and whole domains are stored separately rather than the domains being
+        expanded to entity ids on the way in. A domain means "everything of this kind, including
+        what gets added later" — flattening it here would quietly freeze it to whatever existed
+        the day an admin picked it, so the app expands domains against live entities instead.
+        """
         data = await self._load()
         stored = data.get("events") or {}
-        return list(stored.get("entity_ids") or [])
+        return {
+            "entity_ids": list(stored.get("entity_ids") or []),
+            "domains": list(stored.get("domains") or []),
+        }
 
-    async def set_events_roster(self, set_by: str, entity_ids: list[str]) -> list[str]:
+    async def set_events_roster(
+        self, set_by: str, entity_ids: list[str], domains: list[str] | None = None
+    ) -> dict[str, list[str]]:
         """Replace the household's event roster and return what was stored.
 
-        Capped at MAX_EVENT_ENTITIES: the app opens one logbook subscription covering every id
-        here, so an unbounded roster is a performance problem on each family phone rather than
-        merely a large storage record.
+        Named entities are capped at MAX_EVENT_ENTITIES. Domains are capped separately and much
+        lower: one domain can expand to hundreds of entities on the app's side, so the two are
+        not interchangeable and a shared cap would be meaningless.
         """
         data = await self._load()
         cleaned = [e for e in dict.fromkeys(entity_ids) if isinstance(e, str) and "." in e]
         del cleaned[MAX_EVENT_ENTITIES:]
-        if cleaned:
+        # A domain is the bare prefix: reject "light.kitchen" here so a mis-sent entity id can't
+        # silently become a domain that matches nothing.
+        cleaned_domains = [
+            d for d in dict.fromkeys(domains or []) if isinstance(d, str) and d and "." not in d
+        ]
+        del cleaned_domains[MAX_EVENT_DOMAINS:]
+        if cleaned or cleaned_domains:
             data["events"] = {
                 "entity_ids": cleaned,
+                "domains": cleaned_domains,
                 "set_by": set_by,
                 "set_at": _now_iso(),
             }
@@ -323,26 +344,33 @@ class Hki7Store:
             # An empty roster is the feature being switched off, so leave no record behind.
             data["events"] = {}
         await self._save()
-        return cleaned
+        return {"entity_ids": cleaned, "domains": cleaned_domains}
 
-    async def events_roster_for(self, user_id: str) -> list[str]:
+    async def events_roster_for(self, user_id: str) -> dict[str, list[str]]:
         """The roster with this person's hidden entities and domains removed.
 
         Filtering here rather than in the app means a restricted account is never told which
         entities it is being kept away from — it simply receives a shorter list. This is still a
         Home Assistant account that can read those entities directly, so this hides the timeline,
         not the underlying state; it is the same guarantee hidden rooms and views already give.
+
+        A hidden domain removes both the roster's own domain entry and any individually-named
+        entity belonging to it. Hiding "lock" from someone has to mean every lock, not just the
+        ones an admin happened to add by domain rather than by name.
         """
         roster = await self.get_events_roster()
         policy = await self.get_policy(user_id)
         hidden_ids = set(policy["hidden_event_entity_ids"])
         hidden_domains = set(policy["hidden_event_domains"])
-        return [
-            entity_id
-            for entity_id in roster
-            if entity_id not in hidden_ids
-            and entity_id.split(".", 1)[0] not in hidden_domains
-        ]
+        return {
+            "entity_ids": [
+                entity_id
+                for entity_id in roster["entity_ids"]
+                if entity_id not in hidden_ids
+                and entity_id.split(".", 1)[0] not in hidden_domains
+            ],
+            "domains": [d for d in roster["domains"] if d not in hidden_domains],
+        }
 
 
     # ── App installs (Phase 4) ───────────────────────────────────────────

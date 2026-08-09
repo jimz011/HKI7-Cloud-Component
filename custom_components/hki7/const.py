@@ -34,3 +34,7 @@ DEVICE_REPORT_MIN_INTERVAL_SECONDS = 3600
 # subscribes to the logbook for, and a single busy sensor can log thousands of changes a day,
 # so this is a guard on the app's own workload as much as on .storage size.
 MAX_EVENT_ENTITIES = 40
+
+# Cap on whole domains in that roster. Far lower than the entity cap because each one expands to
+# every entity of its kind on the app's side — a handful of domains is already a wide timeline.
+MAX_EVENT_DOMAINS = 12

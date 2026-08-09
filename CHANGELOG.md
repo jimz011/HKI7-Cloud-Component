@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+
+- `hki7/events/roster/set` now accepts `domains` alongside `entity_ids`, so an admin can put "every lock" on the event timeline as one choice rather than naming eleven entities. `hki7/events/roster` returns them in a `domains` key, and admins additionally get `all_domains`.
+- Domains are stored **unexpanded** rather than flattened to entity ids on the way in. A domain means "everything of this kind, including what gets added later"; expanding it here would quietly freeze it to whatever existed the day it was picked, so the app resolves domains against its live entity list each time the timeline opens.
+- A domain hidden from someone in `hidden_event_domains` now removes both the roster's own domain entry and any individually-named entity belonging to it. Hiding `lock` from a family member has to mean every lock, not only the ones an admin happened to add by name rather than by domain.
+- Domains are capped separately from entities (12 vs 40) rather than sharing one limit. The two are not interchangeable: one domain can expand to hundreds of entities on the app's side, so a shared cap would be meaningless in both directions.
+- An entity id sent in `domains` is rejected rather than stored, so a mis-sent `light.kitchen` cannot become a domain that silently matches nothing.
+
+Backwards compatible: a 0.9.0-era app that sends only `entity_ids` keeps working, and a roster stored by 0.9.0 reads back with an empty domain list.
+
 ## 0.9.0
 
 - New `hki7/events/roster/set` (admin only) stores the household's event-timeline roster: which entities the app shows a "what happened here" feed for. Set once for the whole family rather than on each phone, so a large household isn't configured device by device.

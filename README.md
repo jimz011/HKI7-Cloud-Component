@@ -25,8 +25,9 @@ possible without the app ever handling passwords or accounts itself:
 - **Minimum app version** — the admin can require the household to be on a given HKI 7 version, and
   each app prompts anyone below it to update. Only a version some device already reports running can
   be required, so the requirement can never be one nobody is able to satisfy.
-- **Event timeline** — the admin picks which entities the whole family sees a "what happened here"
-  feed for, and can take individual entities or whole domains back out of one person's feed. Like
+- **Event timeline** — the admin picks which entities (or whole domains) the family sees a "what
+  happened here" feed for, and can take individual entities or whole domains back out of one
+  person's feed. Domains stay unexpanded, so they keep covering entities added later. Like
   parental controls, this hides the timeline rather than the entities themselves.
 
 Everything is set up **from inside the HKI 7 app**. This integration is just the
@@ -80,8 +81,8 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/device/nudge` | admin | Ask one device to update, or clear that request. |
 | `hki7/app_update/get` | any | The household's minimum HKI 7 version. |
 | `hki7/app_update/set` | admin | Set or clear that minimum. |
-| `hki7/events/roster` | any | The event-timeline entities the **caller** may see, already filtered by their own policy; admins also get the unfiltered roster. |
-| `hki7/events/roster/set` | admin | Replace the household's event roster. |
+| `hki7/events/roster` | any | The event-timeline entities and domains the **caller** may see, already filtered by their own policy; admins also get the unfiltered roster. |
+| `hki7/events/roster/set` | admin | Replace the household's event roster (named entities and/or whole domains). |
 
 Publishing or unpublishing fires the Home Assistant event `hki7_dashboard_updated`.
 Foreground HKI 7 clients use it as an invalidation signal and then fetch only dashboards their

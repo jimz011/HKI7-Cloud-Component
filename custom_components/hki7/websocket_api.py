@@ -509,28 +509,39 @@ async def ws_events_roster(hass, connection, msg) -> None:
     the same guarantee hidden rooms and views already give.
     """
     store = _store(hass)
-    result: dict[str, Any] = {"entity_ids": await store.events_roster_for(connection.user.id)}
+    visible = await store.events_roster_for(connection.user.id)
+    result: dict[str, Any] = {
+        "entity_ids": visible["entity_ids"],
+        "domains": visible["domains"],
+    }
     if connection.user.is_admin:
-        result["all_entity_ids"] = await store.get_events_roster()
+        full = await store.get_events_roster()
+        result["all_entity_ids"] = full["entity_ids"]
+        result["all_domains"] = full["domains"]
     connection.send_result(msg["id"], result)
 
 
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "hki7/events/roster/set",
-        # An empty list switches the timeline off for the household.
+        # Both empty switches the timeline off for the household.
         vol.Required("entity_ids"): [str],
+        # Bare domains ("light", "lock"), left unexpanded so they keep covering entities added
+        # later. Optional so a 0.9.0-era app that only sends entity ids keeps working.
+        vol.Optional("domains"): [str],
     }
 )
 @websocket_api.async_response
 async def ws_events_roster_set(hass, connection, msg) -> None:
     """Replace the household's event roster (admin only). Returns what was actually stored,
-    which may be shorter than what was sent — the roster is capped."""
+    which may be shorter than what was sent — entities and domains are each capped."""
     if not connection.user.is_admin:
         connection.send_error(msg["id"], "unauthorized", "Admin only")
         return
-    stored = await _store(hass).set_events_roster(connection.user.id, msg["entity_ids"])
-    connection.send_result(msg["id"], {"entity_ids": stored})
+    stored = await _store(hass).set_events_roster(
+        connection.user.id, msg["entity_ids"], msg.get("domains")
+    )
+    connection.send_result(msg["id"], stored)
 
 
 @callback
