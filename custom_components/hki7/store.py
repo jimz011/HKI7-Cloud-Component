@@ -37,9 +37,17 @@ Sections:
           "<install_id>": {
             "device_id": str, "device_name": str, "app_version": str,
             "app_version_code": int, "os_version": str, "model": str,
-            "user_name": str, "reported": iso8601
+            "user_name": str, "reported": iso8601,
+            # Admin's "update this one phone" request, cleared once it reports a
+            # version that satisfies it.
+            "nudge_version_code": int | None, "nudge_version_name": str | None
           }
         }
+      },
+      "app_update": {
+        # The household's minimum app version. Every device below it is prompted to update.
+        "min_version_code": int | None, "min_version_name": str,
+        "set_by": "<ha_user_id>", "set_at": iso8601
       }
     }
 """
@@ -80,6 +88,7 @@ class Hki7Store:
             self._data.setdefault("dashboards", {})
             self._data.setdefault("policies", {})
             self._data.setdefault("devices", {})
+            self._data.setdefault("app_update", {})
         return self._data
 
     async def _save(self) -> None:
@@ -306,6 +315,15 @@ class Hki7Store:
             "user_name": user_name,
             "reported": _now_iso(),
         }
+        # A pending "update this phone" request belongs to the device, not to the report, so it
+        # survives every report — until the version it asked for actually arrives, which is the
+        # request being satisfied rather than ignored.
+        nudge_code = (previous or {}).get("nudge_version_code")
+        if nudge_code is not None and app_version_code is not None and app_version_code >= nudge_code:
+            nudge_code = None
+        if nudge_code is not None:
+            entry["nudge_version_code"] = nudge_code
+            entry["nudge_version_name"] = (previous or {}).get("nudge_version_name")
         # The app reports on every foreground. Persist only a real change, or a "last seen" that
         # has gone stale enough to be worth a disk write.
         if (
@@ -333,6 +351,79 @@ class Hki7Store:
         out.sort(key=lambda e: ((e.get("user_name") or "").lower(), (e.get("device_name") or "").lower()))
         return out
 
+    async def max_reported_version_code(self) -> int | None:
+        """The highest app version any device has reported, or None if nobody has yet."""
+        data = await self._load()
+        codes = [
+            entry.get("app_version_code")
+            for devices in data["devices"].values()
+            for entry in devices.values()
+            if isinstance(entry.get("app_version_code"), int)
+        ]
+        return max(codes) if codes else None
+
+    async def get_app_update_policy(self) -> dict[str, Any]:
+        """The household's minimum app version, or an empty requirement when none is set."""
+        data = await self._load()
+        stored = data.get("app_update") or {}
+        return {
+            "min_version_code": stored.get("min_version_code"),
+            "min_version_name": stored.get("min_version_name") or "",
+            "set_by": stored.get("set_by") or "",
+            "set_at": stored.get("set_at") or "",
+        }
+
+    async def set_app_update_policy(
+        self, set_by: str, min_version_code: int | None, min_version_name: str | None
+    ) -> dict[str, Any] | None:
+        """Set or clear the household's minimum app version.
+
+        Returns None when asked for a version no device has ever reported. Nothing here can install
+        an app, so a requirement above what actually exists could only ever leave the family staring
+        at a prompt they cannot satisfy; refusing it is the one guard the component can offer.
+        """
+        data = await self._load()
+        if min_version_code is None:
+            data["app_update"] = {}
+            await self._save()
+            return await self.get_app_update_policy()
+        highest = await self.max_reported_version_code()
+        if highest is None or min_version_code > highest:
+            return None
+        data["app_update"] = {
+            "min_version_code": min_version_code,
+            "min_version_name": min_version_name or "",
+            "set_by": set_by,
+            "set_at": _now_iso(),
+        }
+        await self._save()
+        return await self.get_app_update_policy()
+
+    async def nudge_device(
+        self, user_id: str, device_id: str, version_code: int | None, version_name: str | None
+    ) -> bool:
+        """Ask one device to update to [version_code], or clear its pending request with None.
+
+        Refused for a version no device has reported, for the same reason as the household
+        minimum. True when the device exists and the request was stored.
+        """
+        data = await self._load()
+        entry = data["devices"].get(user_id, {}).get(device_id)
+        if entry is None:
+            return False
+        if version_code is None:
+            entry.pop("nudge_version_code", None)
+            entry.pop("nudge_version_name", None)
+            await self._save()
+            return True
+        highest = await self.max_reported_version_code()
+        if highest is None or version_code > highest:
+            return False
+        entry["nudge_version_code"] = version_code
+        entry["nudge_version_name"] = version_name or ""
+        await self._save()
+        return True
+
     async def forget_device(self, user_id: str, device_id: str) -> bool:
         """Drop one remembered install (an uninstalled or replaced phone). True if it existed."""
         data = await self._load()
@@ -346,10 +437,22 @@ class Hki7Store:
 
 
 def _device_facts(entry: dict[str, Any]) -> tuple[Any, ...]:
-    """Everything about a device except when it was last seen."""
+    """Everything about a device except when it was last seen.
+
+    Includes the pending nudge so that clearing a satisfied one is never mistaken for "nothing
+    changed" and left in storage to nag a device that has already updated.
+    """
     return tuple(
         entry.get(key)
-        for key in ("device_name", "app_version", "app_version_code", "os_version", "model", "user_name")
+        for key in (
+            "device_name",
+            "app_version",
+            "app_version_code",
+            "os_version",
+            "model",
+            "user_name",
+            "nudge_version_code",
+        )
     )
 
 

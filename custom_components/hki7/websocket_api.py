@@ -20,9 +20,13 @@ Commands:
     hki7/policy/list         -> (admin) every stored policy, for the editor
     hki7/room_follow/roster  -> the household's room-presence sensor ids (any user)
     hki7/adaptive_lighting/list -> each Adaptive Lighting profile's light membership (any user)
-    hki7/device/report       -> records the CALLING device's app version (any user)
+    hki7/device/report       -> records the CALLING device's app version, and returns the update
+                                it is being asked for, if any (any user)
     hki7/device/list         -> (admin) every reported app install in the household
     hki7/device/forget       -> (admin) drop one remembered install
+    hki7/device/nudge        -> (admin) ask one device to update
+    hki7/app_update/get      -> the household's minimum app version (any user)
+    hki7/app_update/set      -> (admin) set or clear that minimum
 """
 
 from __future__ import annotations
@@ -76,6 +80,9 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_device_report)
     websocket_api.async_register_command(hass, ws_device_list)
     websocket_api.async_register_command(hass, ws_device_forget)
+    websocket_api.async_register_command(hass, ws_device_nudge)
+    websocket_api.async_register_command(hass, ws_app_update_get)
+    websocket_api.async_register_command(hass, ws_app_update_set)
 
 
 def _is_active(hass: HomeAssistant) -> bool:
@@ -356,7 +363,8 @@ async def ws_device_report(hass, connection, msg) -> None:
     filed under is the authenticated caller, not anything the client sends.
     """
     user = connection.user
-    entry = await _store(hass).report_device(
+    store = _store(hass)
+    entry = await store.report_device(
         user_id=user.id,
         user_name=user.name,
         device_id=msg["device_id"],
@@ -366,7 +374,17 @@ async def ws_device_report(hass, connection, msg) -> None:
         os_version=msg.get("os_version"),
         model=msg.get("model"),
     )
-    connection.send_result(msg["id"], entry)
+    # Answer with what this device is being asked to run, so it learns the household minimum and
+    # any request aimed at it in the same round trip it was already making.
+    connection.send_result(
+        msg["id"],
+        {
+            **entry,
+            "required": await store.get_app_update_policy(),
+            "nudge_version_code": entry.get("nudge_version_code"),
+            "nudge_version_name": entry.get("nudge_version_name"),
+        },
+    )
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hki7/device/list"})
@@ -398,6 +416,74 @@ async def ws_device_forget(hass, connection, msg) -> None:
         return
     removed = await _store(hass).forget_device(msg["user_id"], msg["device_id"])
     connection.send_result(msg["id"], {"removed": removed})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/device/nudge",
+        vol.Required("user_id"): str,
+        vol.Required("device_id"): str,
+        # None clears the pending request.
+        vol.Required("version_code"): vol.Any(None, vol.Coerce(int)),
+        vol.Optional("version_name"): _TEXT,
+    }
+)
+@websocket_api.async_response
+async def ws_device_nudge(hass, connection, msg) -> None:
+    """Ask one device to update to a given version, or clear that request (admin only)."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    stored = await _store(hass).nudge_device(
+        msg["user_id"], msg["device_id"], msg["version_code"], msg.get("version_name")
+    )
+    if not stored:
+        connection.send_error(
+            msg["id"],
+            "unsupported_version",
+            "Unknown device, or a version no device has reported running",
+        )
+        return
+    connection.send_result(msg["id"], {"stored": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/app_update/get"})
+@websocket_api.async_response
+async def ws_app_update_get(hass, connection, msg) -> None:
+    """Return the household's minimum app version. Readable by any user: it is what their own app
+    checks itself against, and it names a version rather than anything about another person."""
+    connection.send_result(msg["id"], await _store(hass).get_app_update_policy())
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/app_update/set",
+        # None clears the requirement.
+        vol.Required("min_version_code"): vol.Any(None, vol.Coerce(int)),
+        vol.Optional("min_version_name"): _TEXT,
+    }
+)
+@websocket_api.async_response
+async def ws_app_update_set(hass, connection, msg) -> None:
+    """Set or clear the household's minimum app version (admin only).
+
+    Refused for a version no device has ever reported: nothing here can install an app, so such a
+    requirement could only leave the family looking at a prompt none of them can satisfy.
+    """
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    policy = await _store(hass).set_app_update_policy(
+        connection.user.id, msg["min_version_code"], msg.get("min_version_name")
+    )
+    if policy is None:
+        connection.send_error(
+            msg["id"],
+            "unsupported_version",
+            "No device has reported running that version yet",
+        )
+        return
+    connection.send_result(msg["id"], policy)
 
 
 @callback

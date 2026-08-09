@@ -22,6 +22,9 @@ possible without the app ever handling passwords or accounts itself:
 - **Family devices** — each install records which HKI 7 version it runs, so the admin can see at a
   glance who is behind on updates. Nothing is added to Home Assistant's entity list; a device only
   ever reports itself, filed under the Home Assistant account it is signed in as.
+- **Minimum app version** — the admin can require the household to be on a given HKI 7 version, and
+  each app prompts anyone below it to update. Only a version some device already reports running can
+  be required, so the requirement can never be one nobody is able to satisfy.
 
 Everything is set up **from inside the HKI 7 app**. This integration is just the
 wiring Home Assistant needs to store and serve that data.
@@ -67,6 +70,13 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
 | `hki7/room_follow/roster` | any | The household's room-presence sensor ids, for the people-per-room counter. |
+| `hki7/adaptive_lighting/list` | any | Each Adaptive Lighting profile's light membership, so non-admins get the same per-room controls. |
+| `hki7/device/report` | any | Record the **calling device's** HKI 7 version; answers with the update it is being asked for. |
+| `hki7/device/list` | admin | Every reported install in the household. |
+| `hki7/device/forget` | admin | Drop one remembered install (a replaced or uninstalled phone). |
+| `hki7/device/nudge` | admin | Ask one device to update, or clear that request. |
+| `hki7/app_update/get` | any | The household's minimum HKI 7 version. |
+| `hki7/app_update/set` | admin | Set or clear that minimum. |
 
 Publishing or unpublishing fires the Home Assistant event `hki7_dashboard_updated`.
 Foreground HKI 7 clients use it as an invalidation signal and then fetch only dashboards their

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+- New `hki7/app_update/set` and `hki7/app_update/get`: an admin can set the household's minimum HKI 7 version, and every app checks itself against it. This is what makes the app's "everyone must update" prompt possible — the component holds the requirement, the way a game server holds its minimum client version.
+- New `hki7/device/nudge` asks one specific device to update, for when only one phone is behind rather than the whole family. It clears itself automatically as soon as that device reports a version that satisfies it, so a stale request can't nag a phone that already updated.
+- `hki7/device/report` now answers with the household minimum and any request aimed at the reporting device, so an app learns what it is being asked to run in the round trip it was already making — no extra command on the foreground path.
+- Both `app_update/set` and `device/nudge` refuse a version no device has ever reported running. Nothing here can install an app, so a requirement above what actually exists could only leave the family looking at a prompt none of them can satisfy; refusing it is the one guard the component can offer against locking your own household out.
+- Reading the minimum is open to any authenticated user — it is what their own app checks itself against, and it names a version rather than anything about another person. Setting it, nudging, and listing devices stay admin-only.
+
 ## 0.7.0
 
 - New `hki7/device/report`, so each HKI 7 install can record which app version it is running. Any authenticated user may call it, but only for themselves: the account a device is filed under is the authenticated caller, never anything the client sends. The record holds the app's own stable install id, the device name, app version and version code, the Android version and the model.
