@@ -29,3 +29,8 @@ MAX_DEVICES_PER_USER = 12
 # .storage just to move its "last seen" clock is pure disk churn, so an unchanged report is
 # only persisted once this many seconds have passed.
 DEVICE_REPORT_MIN_INTERVAL_SECONDS = 3600
+
+# Cap on the household's event-timeline roster. Every id here becomes an entity the app
+# subscribes to the logbook for, and a single busy sensor can log thousands of changes a day,
+# so this is a guard on the app's own workload as much as on .storage size.
+MAX_EVENT_ENTITIES = 40

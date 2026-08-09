@@ -25,6 +25,9 @@ possible without the app ever handling passwords or accounts itself:
 - **Minimum app version** — the admin can require the household to be on a given HKI 7 version, and
   each app prompts anyone below it to update. Only a version some device already reports running can
   be required, so the requirement can never be one nobody is able to satisfy.
+- **Event timeline** — the admin picks which entities the whole family sees a "what happened here"
+  feed for, and can take individual entities or whole domains back out of one person's feed. Like
+  parental controls, this hides the timeline rather than the entities themselves.
 
 Everything is set up **from inside the HKI 7 app**. This integration is just the
 wiring Home Assistant needs to store and serve that data.
@@ -66,7 +69,7 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/dashboard/unpublish` | admin | Remove a shared dashboard owned by the caller. |
 | `hki7/dashboard/list` | any | Dashboards visible to the caller (metadata). |
 | `hki7/dashboard/get` | any | Fetch a dashboard payload the caller may see. |
-| `hki7/policy/set` | admin | Set a user's hidden views/rooms, app permissions, visible/invisible global-search domains or entities, and room-following settings. |
+| `hki7/policy/set` | admin | Set a user's hidden views/rooms, app permissions, visible/invisible global-search domains or entities, room-following settings, and which event-timeline entities or domains are hidden from them. |
 | `hki7/policy/get` | any | The **caller's own** policy (never anyone else's). |
 | `hki7/policy/list` | admin | Every stored policy, for the admin editor. |
 | `hki7/room_follow/roster` | any | The household's room-presence sensor ids, for the people-per-room counter. |
@@ -77,6 +80,8 @@ per-user reads are always filtered to the calling user server-side.
 | `hki7/device/nudge` | admin | Ask one device to update, or clear that request. |
 | `hki7/app_update/get` | any | The household's minimum HKI 7 version. |
 | `hki7/app_update/set` | admin | Set or clear that minimum. |
+| `hki7/events/roster` | any | The event-timeline entities the **caller** may see, already filtered by their own policy; admins also get the unfiltered roster. |
+| `hki7/events/roster/set` | admin | Replace the household's event roster. |
 
 Publishing or unpublishing fires the Home Assistant event `hki7_dashboard_updated`.
 Foreground HKI 7 clients use it as an invalidation signal and then fetch only dashboards their

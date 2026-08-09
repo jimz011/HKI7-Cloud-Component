@@ -48,6 +48,14 @@ Sections:
         # The household's minimum app version. Every device below it is prompted to update.
         "min_version_code": int | None, "min_version_name": str,
         "set_by": "<ha_user_id>", "set_at": iso8601
+      },
+      "events": {
+        # The household's event-timeline roster: which entities the app shows a
+        # "what happened" feed for. Set once by an admin rather than per device, so a
+        # large family is not configured phone by phone. Who may see which of these is a
+        # per-user concern and lives in "policies" (hidden_event_*), not here.
+        "entity_ids": [str],
+        "set_by": "<ha_user_id>", "set_at": iso8601
       }
     }
 """
@@ -65,6 +73,7 @@ from .const import (
     DEVICE_REPORT_MIN_INTERVAL_SECONDS,
     MAX_BACKUPS,
     MAX_DEVICES_PER_USER,
+    MAX_EVENT_ENTITIES,
     STORAGE_KEY,
     STORAGE_VERSION,
 )
@@ -89,6 +98,7 @@ class Hki7Store:
             self._data.setdefault("policies", {})
             self._data.setdefault("devices", {})
             self._data.setdefault("app_update", {})
+            self._data.setdefault("events", {})
         return self._data
 
     async def _save(self) -> None:
@@ -228,6 +238,8 @@ class Hki7Store:
         hidden_search_domains: list[str] | None = None,
         hidden_search_entity_ids: list[str] | None = None,
         room_follow: dict[str, Any] | None = None,
+        hidden_event_entity_ids: list[str] | None = None,
+        hidden_event_domains: list[str] | None = None,
     ) -> dict[str, Any]:
         """Set (or clear) one user's policy — hidden views/rooms plus edit and visibility
         permissions. Returns the stored, fully-populated policy."""
@@ -250,6 +262,8 @@ class Hki7Store:
             "hidden_search_domains": previous["hidden_search_domains"] if hidden_search_domains is None else list(dict.fromkeys(hidden_search_domains)),
             "hidden_search_entity_ids": previous["hidden_search_entity_ids"] if hidden_search_entity_ids is None else list(dict.fromkeys(hidden_search_entity_ids)),
             "room_follow": previous["room_follow"] if room_follow is None else _full_room_follow(room_follow),
+            "hidden_event_entity_ids": previous["hidden_event_entity_ids"] if hidden_event_entity_ids is None else list(dict.fromkeys(hidden_event_entity_ids)),
+            "hidden_event_domains": previous["hidden_event_domains"] if hidden_event_domains is None else list(dict.fromkeys(hidden_event_domains)),
         }
         # Store nothing for an all-default policy so an untouched user leaves no footprint.
         if policy == _default_policy():
@@ -282,6 +296,53 @@ class Hki7Store:
             if follow["enabled"] and sensor and sensor not in sensors:
                 sensors.append(sensor)
         return sensors
+
+    async def get_events_roster(self) -> list[str]:
+        """The household's full event-timeline roster, exactly as the admin set it."""
+        data = await self._load()
+        stored = data.get("events") or {}
+        return list(stored.get("entity_ids") or [])
+
+    async def set_events_roster(self, set_by: str, entity_ids: list[str]) -> list[str]:
+        """Replace the household's event roster and return what was stored.
+
+        Capped at MAX_EVENT_ENTITIES: the app opens one logbook subscription covering every id
+        here, so an unbounded roster is a performance problem on each family phone rather than
+        merely a large storage record.
+        """
+        data = await self._load()
+        cleaned = [e for e in dict.fromkeys(entity_ids) if isinstance(e, str) and "." in e]
+        del cleaned[MAX_EVENT_ENTITIES:]
+        if cleaned:
+            data["events"] = {
+                "entity_ids": cleaned,
+                "set_by": set_by,
+                "set_at": _now_iso(),
+            }
+        else:
+            # An empty roster is the feature being switched off, so leave no record behind.
+            data["events"] = {}
+        await self._save()
+        return cleaned
+
+    async def events_roster_for(self, user_id: str) -> list[str]:
+        """The roster with this person's hidden entities and domains removed.
+
+        Filtering here rather than in the app means a restricted account is never told which
+        entities it is being kept away from — it simply receives a shorter list. This is still a
+        Home Assistant account that can read those entities directly, so this hides the timeline,
+        not the underlying state; it is the same guarantee hidden rooms and views already give.
+        """
+        roster = await self.get_events_roster()
+        policy = await self.get_policy(user_id)
+        hidden_ids = set(policy["hidden_event_entity_ids"])
+        hidden_domains = set(policy["hidden_event_domains"])
+        return [
+            entity_id
+            for entity_id in roster
+            if entity_id not in hidden_ids
+            and entity_id.split(".", 1)[0] not in hidden_domains
+        ]
 
 
     # ── App installs (Phase 4) ───────────────────────────────────────────
@@ -490,6 +551,11 @@ def _full_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
         "hidden_search_domains": policy.get("hidden_search_domains", []),
         "hidden_search_entity_ids": policy.get("hidden_search_entity_ids", []),
         "room_follow": _full_room_follow(policy.get("room_follow")),
+        # Entities and whole domains from the household event roster that this person must not
+        # see a timeline for. Subtractive rather than an allow-list: an admin curates the roster
+        # once for everybody, then takes entries away from the people who shouldn't have them.
+        "hidden_event_entity_ids": policy.get("hidden_event_entity_ids", []),
+        "hidden_event_domains": policy.get("hidden_event_domains", []),
     }
 
 

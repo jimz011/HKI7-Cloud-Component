@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+- New `hki7/events/roster/set` (admin only) stores the household's event-timeline roster: which entities the app shows a "what happened here" feed for. Set once for the whole family rather than on each phone, so a large household isn't configured device by device.
+- New `hki7/events/roster` returns that roster to any authenticated user — but already filtered by the caller's own policy, so a restricted account is never handed the ids it is being kept away from and cannot subscribe to their logbook by ignoring a client-side filter. Admins additionally receive `all_entity_ids`, the unfiltered roster, because that is what the roster editor has to show.
+- `hki7/policy/set` accepts `hidden_event_entity_ids` and `hidden_event_domains`, so an admin can take individual entities or whole domains out of one person's timeline. It's subtractive: the roster is curated once for everybody, then entries are taken away from the people who shouldn't have them.
+- As with hidden views and rooms, this hides the *timeline*, not the entities. Home Assistant has no per-entity read permission for non-admin users, so anyone in the household can still read those entities directly — through the Home Assistant web UI or the official app. Treat it as a friendlier feed, not a security boundary.
+- The roster is capped at 40 entities. The app opens one logbook subscription covering every id on it, and a single busy sensor can log thousands of state changes a day, so the cap guards each family phone's workload more than it guards `.storage`.
+
 ## 0.8.0
 
 - New `hki7/app_update/set` and `hki7/app_update/get`: an admin can set the household's minimum HKI 7 version, and every app checks itself against it. This is what makes the app's "everyone must update" prompt possible — the component holds the requirement, the way a game server holds its minimum client version.

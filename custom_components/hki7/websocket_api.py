@@ -27,6 +27,8 @@ Commands:
     hki7/device/nudge        -> (admin) ask one device to update
     hki7/app_update/get      -> the household's minimum app version (any user)
     hki7/app_update/set      -> (admin) set or clear that minimum
+    hki7/events/roster       -> the event-timeline entities the CALLER may see (any user)
+    hki7/events/roster/set   -> (admin) replace the household's event roster
 """
 
 from __future__ import annotations
@@ -83,6 +85,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_device_nudge)
     websocket_api.async_register_command(hass, ws_app_update_get)
     websocket_api.async_register_command(hass, ws_app_update_set)
+    websocket_api.async_register_command(hass, ws_events_roster)
+    websocket_api.async_register_command(hass, ws_events_roster_set)
 
 
 def _is_active(hass: HomeAssistant) -> bool:
@@ -276,6 +280,8 @@ async def ws_dashboard_get(hass, connection, msg) -> None:
         vol.Optional("hidden_search_domains"): [str],
         vol.Optional("hidden_search_entity_ids"): [str],
         vol.Optional("room_follow"): _ROOM_FOLLOW_SCHEMA,
+        vol.Optional("hidden_event_entity_ids"): [str],
+        vol.Optional("hidden_event_domains"): [str],
     }
 )
 @websocket_api.async_response
@@ -301,6 +307,8 @@ async def ws_policy_set(hass, connection, msg) -> None:
         hidden_search_domains=msg.get("hidden_search_domains"),
         hidden_search_entity_ids=msg.get("hidden_search_entity_ids"),
         room_follow=msg.get("room_follow"),
+        hidden_event_entity_ids=msg.get("hidden_event_entity_ids"),
+        hidden_event_domains=msg.get("hidden_event_domains"),
     )
     connection.send_result(msg["id"], policy)
 
@@ -484,6 +492,45 @@ async def ws_app_update_set(hass, connection, msg) -> None:
         )
         return
     connection.send_result(msg["id"], policy)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hki7/events/roster"})
+@websocket_api.async_response
+async def ws_events_roster(hass, connection, msg) -> None:
+    """Return the event-timeline entities the CALLING user may see.
+
+    ``entity_ids`` is already filtered by the caller's own policy, so a restricted account is
+    never handed the ids it is being kept away from and cannot subscribe to their logbook by
+    simply ignoring a client-side filter. Admins additionally get ``all_entity_ids`` — the
+    unfiltered roster — because that is what the roster editor has to show.
+
+    This hides the timeline, not the entities themselves: Home Assistant has no per-entity read
+    permission for non-admin users, so anyone here can still read those entities directly. It is
+    the same guarantee hidden rooms and views already give.
+    """
+    store = _store(hass)
+    result: dict[str, Any] = {"entity_ids": await store.events_roster_for(connection.user.id)}
+    if connection.user.is_admin:
+        result["all_entity_ids"] = await store.get_events_roster()
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "hki7/events/roster/set",
+        # An empty list switches the timeline off for the household.
+        vol.Required("entity_ids"): [str],
+    }
+)
+@websocket_api.async_response
+async def ws_events_roster_set(hass, connection, msg) -> None:
+    """Replace the household's event roster (admin only). Returns what was actually stored,
+    which may be shorter than what was sent — the roster is capped."""
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", "Admin only")
+        return
+    stored = await _store(hass).set_events_roster(connection.user.id, msg["entity_ids"])
+    connection.send_result(msg["id"], {"entity_ids": stored})
 
 
 @callback
