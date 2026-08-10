@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.1
+
+- Added HACS validation, Hassfest validation, and local brand assets for default-store submission.
+
 ## 0.10.0
 
 - `hki7/events/roster/set` now accepts `domains` alongside `entity_ids`, so an admin can put "every lock" on the event timeline as one choice rather than naming eleven entities. `hki7/events/roster` returns them in a `domains` key, and admins additionally get `all_domains`.
@@ -66,4 +70,3 @@ Backwards compatible: a 0.9.0-era app that sends only `entity_ids` keeps working
 ## 0.5.3
 
 - Added the per-user permission for manually re-importing or clearing dashboard view data.
-
