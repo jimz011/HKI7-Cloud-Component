@@ -1,3 +1,6 @@
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg)](https://www.buymeacoffee.com/w8Jnf6Hit)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-blue.svg)](https://paypal.me/JimmySchings)
+
 # HKI 7 Cloud
 
 <img width="1024" height="500" alt="play_feature_graphic_1024x500" src="https://github.com/user-attachments/assets/ef15a0ed-1b1a-4390-94f0-99c7380d6e67" />
