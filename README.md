@@ -14,7 +14,7 @@ knows *which HA user* is calling. That is what makes the app's family features
 possible without the app ever handling passwords or accounts itself:
 
 - **HA-local backups** — back up your dashboard to your own HA instance, as an
-  addition to (not a replacement for) the app's Google Drive backups.
+  addition or replacement for the app's Google Drive backups.
 - **Family dashboard sharing** — the admin builds one dashboard and shares it with
   specific family members (or everyone), instead of passing backup files between
   phones. Recipients import a copy into their own app.
