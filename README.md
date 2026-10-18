@@ -40,10 +40,13 @@ wiring Home Assistant needs to store and serve that data.
 
 ### HACS (recommended)
 
-1. In HACS, add this repository as a **Custom repository** (category: *Integration*).
-2. Install **HKI 7 Cloud**.
-3. Restart Home Assistant.
-4. Go to **Settings → Devices & Services → Add Integration → HKI 7 Cloud** and
+HKI 7 Cloud is in the default HACS store, so there is no custom repository to add.
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jimz011&repository=HKI7-Cloud-Component&category=integration)
+
+1. In HACS, search for **HKI 7 Cloud** (or use the button above) and install it.
+2. Restart Home Assistant.
+3. Go to **Settings → Devices & Services → Add Integration → HKI 7 Cloud** and
    confirm. There is nothing to configure here.
 
 ### Manual
